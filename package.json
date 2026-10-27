@@ -1,0 +1,17 @@
+{
+  "name": "ethio-bet",
+  "version": "1.0.0",
+  "description": "Keno game server backed by MongoDB Atlas",
+  "main": "admin_server.js",
+  "scripts": {
+    "start": "node admin_server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
