@@ -178,7 +178,7 @@
         </div>
     </header>
     <div class="main-container active" id="homeContainer">
-        <div class="welcome-card">
+        <div class="welcome-card" id="welcomeCard">
             <h3 id="welcomeMessage">👋 ወደ Dashbet እንኳን ደህና መጡ!</h3>
             <p>ጨዋታዎችን ለመምረጥ ከታች ያለውን GAME ታብ ይጫኑ።</p>
             <div class="quick-actions" style="margin-top: 15px;">
@@ -322,200 +322,86 @@
         <button class="nav-item" id="navWallet" onclick="switchMainPage('wallet')"><span class="icon">💰</span>WALLET</button>
         <button class="nav-item" id="navGame" onclick="switchMainPage('game')"><span class="icon">🎰</span>GAME</button>
     </div>
-        function loginSuccess() {
-            document.getElementById('authOverlay').style.display = 'none';
-            document.getElementById('userWidget').style.display = 'flex';
-            document.getElementById('footerNav').style.display = 'flex';
-            document.getElementById('displayPhone').innerHTML = `👤 📞 <strong>${currentUser.phone}</strong>`;
-            updateBalanceDisplay();
-            switchMainPage('home');
-            initKenoGrid();
-            startKenoTimer();
+    <script>
+        // 🚀 የ Render አድራሻህ በቋሚነት ተተክቷል!
+        const API_URL = "https://onrender.com"; 
+
+        let currentUser = null;
+        let selectedNumbers = [];
+        let currentBetAmount = 4.0;
+        let activeTab = 'login';
+        let statsTab = 'history';
+        let walletMode = 'deposit';
+        let kenoTimerInterval = null;
+        let currentRound = 101;
+        let hasBetInCurrentRound = false;
+        let myActiveTicket = null;
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
         }
 
-        function logout() {
-            currentUser = null;
-            document.getElementById('authOverlay').style.display = 'flex';
-            document.getElementById('userWidget').style.display = 'none';
-            document.getElementById('footerNav').style.display = 'none';
-            switchMainPage('home');
-            if(kenoTimerInterval) clearInterval(kenoTimerInterval);
-        }
-
-        function updateBalanceDisplay() {
-            if(!currentUser) return;
-            const formatted = `Balance: ${parseFloat(currentUser.balance).toFixed(2)} ETB`;
-            document.getElementById('displayBalance').innerText = formatted;
-            document.getElementById('withdrawAvailBalance').innerText = `💸 Withdraw Available Balance: ${parseFloat(currentUser.balance).toFixed(2)} ETB`;
-        }
-
-        function switchMainPage(page) {
-            document.querySelectorAll('.main-container').forEach(c => c.classList.remove('active'));
-            document.getElementById('kenoGameScreen').style.display = 'none';
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        function switchAuthTab(tab) {
+            activeTab = tab;
+            document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
             
-            if(page === 'home') {
-                document.getElementById('homeContainer').classList.add('active');
-                document.getElementById('navHome').classList.add('active');
-            } else if(page === 'wallet') {
-                document.getElementById('homeContainer').classList.add('active');
-                document.getElementById('navWallet').classList.add('active');
-                openWallet('deposit');
-            } else if(page === 'game') {
-                document.getElementById('gameMenuContainer').classList.add('active');
-                document.getElementById('navGame').classList.add('active');
-            }
-        }
-
-        function openWallet(mode) {
-            document.getElementById('walletPanel').classList.add('active');
-            document.getElementById('welcomeCard')?.style.setProperty('display', 'none');
-            switchWalletTab(mode);
-        }
-        function closeWallet() {
-            document.getElementById('walletPanel').classList.remove('active');
-            switchMainPage('home');
-        }
-        function switchWalletTab(mode) {
-            walletMode = mode;
-            document.querySelectorAll('.wallet-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.wallet-form').forEach(f => f.classList.remove('active'));
-            if(mode === 'deposit') {
-                document.getElementById('tabDepHead').classList.add('active');
-                document.getElementById('depositForm').classList.add('active');
+            if(tab === 'login') {
+                document.querySelector('.auth-tabs button:nth-child(1)').classList.add('active');
+                document.getElementById('loginForm').classList.add('active');
             } else {
-                document.getElementById('tabWithHead').classList.add('active');
-                document.getElementById('withdrawForm').classList.add('active');
+                document.querySelector('.auth-tabs button:nth-child(2)').classList.add('active');
+                document.getElementById('registerForm').classList.add('active');
             }
         }
-        async function handleDeposit(e) {
+
+        async function handleAuth(e, mode) {
             e.preventDefault();
-            const amount = document.getElementById('depAmount').value;
-            const senderPhone = document.getElementById('depSenderPhone').value;
-            const method = document.getElementById('depMethod').value;
+            const phone = document.getElementById(mode === 'login' ? 'loginPhone' : 'regPhone').value;
+            const password = document.getElementById(mode === 'login' ? 'loginPass' : 'regPass').value;
             
+            const endpoint = mode === 'login' ? '/login' : '/register';
             try {
-                const res = await fetch(API_URL + '/api/deposit', {
+                const res = await fetch(API_URL + endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userPhone: currentUser.phone, amount, senderPhone, method })
-                });
-                const data = await res.json();
-                if(data.success) { showToast(data.message, "success"); closeWallet(); }
-                else { showToast(data.message, "error"); }
-            } catch(err) { showToast("❌ ስህተት አጋጥሟል!", "error"); }
-        }
-
-        async function handleWithdraw(e) {
-            e.preventDefault();
-            const amount = document.getElementById('withAmount').value;
-            const accountNumber = document.getElementById('withAccountNum').value;
-            const fullName = document.getElementById('withFullName').value;
-            const method = document.getElementById('withMethod').value;
-
-            try {
-                const res = await fetch(API_URL + '/api/withdraw', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userPhone: currentUser.phone, amount, accountNumber, fullName, method })
-                });
-                const data = await res.json();
-                if(data.success) { showToast(data.message, "success"); closeWallet(); }
-                else { showToast(data.message, "error"); }
-            } catch(err) { showToast("❌ ስህተት አጋጥሟል!", "error"); }
-        }
-        function openGame(game) {
-            if(game !== 'keno') return;
-            document.getElementById('gameMenuContainer').classList.remove('active');
-            document.getElementById('kenoGameScreen').style.display = 'flex';
-        }
-        function closeGame() {
-            document.getElementById('kenoGameScreen').style.display = 'none';
-            document.getElementById('gameMenuContainer').classList.add('active');
-        }
-
-        function initKenoGrid() {
-            const grid = document.getElementById('kenoGrid');
-            document.querySelectorAll('.num-btn').forEach(b => b.remove());
-            for(let i=1; i<=80; i++) {
-                const btn = document.createElement('button');
-                btn.className = 'num-btn';
-                btn.innerText = i;
-                btn.id = `knum-${i}`;
-                btn.onclick = () => toggleNumber(i);
-                grid.appendChild(btn);
-            }
-        }
-
-        function toggleNumber(num) {
-            if(hasBetInCurrentRound) return;
-            const btn = document.getElementById(`knum-${num}`);
-            if(selectedNumbers.includes(num)) {
-                selectedNumbers = selectedNumbers.filter(n => n !== num);
-                btn.classList.remove('selected');
-            } else {
-                if(selectedNumbers.length >= 10) { showToast("⚠️ መምረጥ የሚቻለው ከፍተኛ መጠን 10 ቁጥሮች ብቻ ነው!", "error"); return; }
-                selectedNumbers.push(num);
-                btn.classList.add('selected');
-            }
-            updateTicketTabDisplay();
-        }
-
-        function adjustBet(val) {
-            if(val === 'X2') { currentBetAmount *= 2; }
-            else { currentBetAmount += val; }
-            if(currentBetAmount < 4.0) currentBetAmount = 4.0;
-            document.getElementById('betDisplay').innerText = currentBetAmount.toFixed(2);
-        }
-
-        async function placeBet() {
-            if(selectedNumbers.length === 0) { showToast("⚠️ እባክዎ መጀመሪያ ቁጥር ይምረጡ!", "error"); return; }
-            if(currentUser.balance < currentBetAmount) { showToast("❌ በቂ ቀሪ ሂሳብ የሎትም! እባክዎ መጀመሪያ ዲፖዚት ያድርጉ።", "error"); return; }
-            
-            try {
-                const res = await fetch(API_URL + '/api/place-bet', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userPhone: currentUser.phone, betAmount: currentBetAmount })
+                    body: JSON.stringify({ phone, password })
                 });
                 const data = await res.json();
                 if(data.success) {
-                    currentUser.balance = data.newBalance;
-                    updateBalanceDisplay();
-                    hasBetInCurrentRound = true;
+                    showToast(data.message || "እንኳን ደህና መጡ!", "success");
+                    if(mode === 'login') {
+                        currentUser = data.user;
+                        loginSuccess();
+                    } else {
+                        switchAuthTab('login');
+                    }
+                } else {
+                    showToast(data.message || "የተሳሳተ መረጃ!", "error");
+                }
+            } catch(err) {
+                showToast("❌ ከሰርቨር ጋር መገናኘት አልተቻለም!", "error");
+            }
+        }
                     document.getElementById('betBtn').disabled = true;
                     myActiveTicket = { round: currentRound, numbers: [...selectedNumbers], bet: currentBetAmount };
-                    showToast("✅ ውርርድዎ በተሳካ ሁኔታ ተመዝግቧል! መልካም ዕድል", "success");
+                    showToast("✅ ውርርድዎ በተሳካ ሁኔታ ተመዝგቧል!", "success");
                     switchStatsTab('tickets');
                 }
             } catch(e) { showToast("❌ ውርርዱ አልተሳካም!", "error"); }
         }
+
         function startKenoTimer() {
             let timeLeft = 60;
-            document.getElementById('gameRoundDisplay').innerText = `ROUND: #${currentRound}`;
-            
             if(kenoTimerInterval) clearInterval(kenoTimerInterval);
-            
-            kenoTimerInterval = setInterval(async () => {
+            kenoTimerInterval = setInterval(() => {
                 timeLeft--;
-                let mins = Math.floor(timeLeft / 60);
-                let secs = timeLeft % 60;
-                document.getElementById('gameTimer').innerText = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-                
-                if(timeLeft === 10) {
-                    document.getElementById('overlayBalls').innerHTML = '';
-                    document.getElementById('overlayTitle').innerText = "የዕድል ቁጥሮች";
-                    document.getElementById('overlayDesc').innerText = "ቁጥሮቹ እየወጡ ነው፣ እባክዎ ይጠብቁ...";
-                    document.getElementById('gridOverlay').classList.add('active');
-                }
-                
-                if(timeLeft <= 0) {
-                    clearInterval(kenoTimerInterval);
-                    runKenoDraw();
-                }
+                if(timeLeft <= 0) { clearInterval(kenoTimerInterval); runKenoDraw(); }
             }, 1000);
         }
-
         async function runKenoDraw() {
             let pool = Array.from({length: 80}, (_, i) => i + 1);
             let drawn = [];
@@ -523,103 +409,8 @@
                 let idx = Math.floor(Math.random() * pool.length);
                 drawn.push(pool.splice(idx, 1)[0]);
             }
-            
-            const ballsContainer = document.getElementById('overlayBalls');
-            for(let i=0; i<drawn.length; i++) {
-                await new Promise(r => setTimeout(r, 250));
-                const ball = document.createElement('div');
-                ball.className = 'overlay-ball';
-                ball.innerText = drawn[i];
-                ballsContainer.appendChild(ball);
-                
-                const btn = document.getElementById(`knum-${drawn[i]}`);
-                if(btn) {
-                    if(selectedNumbers.includes(drawn[i])) { btn.classList.add('hit'); }
-                    else { btn.classList.add('miss'); }
-                }
-            }
-
-            let winAmount = 0;
-            if(hasBetInCurrentRound && myActiveTicket) {
-                let hits = myActiveTicket.numbers.filter(n => drawn.includes(n)).length;
-                if(hits > 0) {
-                    winAmount = myActiveTicket.bet * (hits * 1.5);
-                    try {
-                        const res = await fetch(API_URL + '/api/claim-win', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userPhone: currentUser.phone, winAmount })
-                        });
-                        const d = await res.json();
-                        if(d.success) { currentUser.balance = d.newBalance; updateBalanceDisplay(); }
-                    } catch(e){}
-                }
-            }
-
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-                await fetch(API_URL + '/api/save-draw', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ roundNumber: currentRound, results: drawn })
-                });
-            } catch(e){}
-
-            if(winAmount > 0) { document.getElementById('overlayTitle').innerText = "🎉 እንኳን ደስ አለዎት! 🎉"; document.getElementById('overlayDesc').innerText = `በዚህ ዙር ${winAmount.toFixed(2)} ETB አሸንፈዋል!`; }
-            else if(hasBetInCurrentRound) { document.getElementById('overlayTitle').innerText = "👎 አልተሳካም! 👎"; document.getElementById('overlayDesc').innerText = "በዚህ ዙር አልታደሉም፣ በሚቀጥለው ይሞክሩ!"; }
-            else { document.getElementById('gridOverlay').classList.remove('active'); }
-
-            await new Promise(r => setTimeout(r, 4000));
-            document.getElementById('gridOverlay').classList.remove('active');
-            
-            currentRound++;
-            hasBetInCurrentRound = false;
-            myActiveTicket = null;
-            selectedNumbers = [];
-            document.getElementById('betBtn').disabled = false;
-            initKenoGrid();
-            updateTicketTabDisplay();
             startKenoTimer();
             loadHistory();
-        }
-        function switchStatsTab(tab) {
-            statsTab = tab;
-            document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
-            if(tab === 'history') document.getElementById('tabHistHead').classList.add('active');
-            if(tab === 'tickets') document.getElementById('tabTicketHead').classList.add('active');
-            if(tab === 'bets') document.getElementById('tabBetHead').classList.add('active');
-            updateTicketTabDisplay();
-        }
-
-        async function loadHistory() {
-            if(statsTab !== 'history') return;
-            try {
-                const res = await fetch(API_URL + '/api/draw-history');
-                const list = await res.json();
-                const container = document.getElementById('statsContent');
-                container.innerHTML = '';
-                if(list.length === 0) { container.innerText = "የተመዘገበ ታሪክ የለም።"; return; }
-                list.forEach(h => {
-                    const row = document.createElement('div');
-                    row.className = 'history-row';
-                    let ballsHtml = h.results.map(n => `<div class="hist-ball">${n}</div>`).join('');
-                    row.innerHTML = `<span class="hist-round">#${h.roundNumber}</span><div class="hist-balls">${ballsHtml}</div>`;
-                    container.appendChild(row);
-                });
-            } catch(e){}
-        }
-
-        function updateTicketTabDisplay() {
-            const container = document.getElementById('statsContent');
-            if(statsTab === 'history') { loadHistory(); return; }
-            if(statsTab === 'tickets') {
-                document.getElementById('tabTicketHead').innerText = `My Tickets (${myActiveTicket ? 1 : 0})`;
-                if(!myActiveTicket) { container.innerHTML = '<div style="padding:10px;text-align:center;">በአሁኑ ዙር ምንም ንቁ ቲኬት የሎትም!</div>'; return; }
-                container.innerHTML = `<div style="background:#0b0f19;padding:12px;border-radius:10px;border:1px solid #1e2f4d;"><p style="font-weight:700;color:#fff;">ROUND: #${myActiveTicket.round}</p><p style="color:var(--primary);font-weight:800;margin:5px 0;">የመረጡት ቁጥሮች፦ ${myActiveTicket.numbers.join(', ')}</p><p style="color:var(--success);">የውርርድ መጠን፦ ${myActiveTicket.bet.toFixed(2)} ETB</p></div>`;
-            }
-            if(statsTab === 'bets') {
-                container.innerHTML = '<div style="padding:10px;text-align:center;color:var(--text-muted);">የቆዩ የውርርድ ታሪኮች በዳታቤዝ ውስጥ በቋሚነት ተቀምጠዋል።</div>';
-            }
         }
     </script>
 </body>
